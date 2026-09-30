@@ -75,7 +75,7 @@ Token LexerNextToken(Lexer *lexer) {
             
             LexerAdvance(lexer); 
             
-            return MakeToken(TOKEN_EQUAL, '=');
+            return MakeToken(TOKEN_EQUAL, "=");
 
         case '!':
             if (LexerPeek(lexer) == '=') {
@@ -91,7 +91,7 @@ Token LexerNextToken(Lexer *lexer) {
         case '%':
             LexerAdvance(lexer);
 
-            return MakeToken(TOKEN_MODULO, '%');
+            return MakeToken(TOKEN_MODULO, "%");
         
         case '|':
             if (LexerPeek(lexer) == '|') {
