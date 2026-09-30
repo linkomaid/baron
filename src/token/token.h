@@ -1,8 +1,11 @@
 #ifndef BRN_TOKEN_H
 #define BRN_TOKEN_H
 
+#include <stddef.h>
+
 typedef enum {
     TOKEN_EOF,
+    TOKEN_UNKNOWN,
 
     TOKEN_IDENTIFIER,
     TOKEN_STRING,
@@ -47,6 +50,7 @@ typedef enum {
 typedef struct {
     Token_type type;
     const char *lexeme;
+    size_t length;
     
 } Token;
 

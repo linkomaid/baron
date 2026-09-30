@@ -3,6 +3,13 @@
 
 #include "lexer.h"
 
+void LexerInit(Lexer *lexer, const char *source) {
+
+    lexer->source = source;
+    lexer->position = 0;
+    lexer->length = strlen(source);
+}
+
 static char LexerCurrent(Lexer *lexer) {
 
     if (lexer->position >= lexer->length)
@@ -39,19 +46,96 @@ static void LexerSkipWhitespace(Lexer *lexer) {
 
 
 // Helper - Makes the code prettier.
-static Token MakeToken(Token_type type, const char *lexeme) {
+static Token MakeToken(
+    Token_type type, 
+    const char *lexeme,
+    size_t length
+) {
     
-    return (Token) { type, lexeme };
+    return (Token) { type, lexeme, length };
 }
 
 
-void LexerInit(Lexer *lexer, const char *source) {
-
-    lexer->source = source;
-    lexer->position = 0;
-    lexer->length = strlen(source);
+static int LexerIdentifierStart(char character) {
+    return isalpha((unsigned char)character) || character == '_';
 }
 
+static int LexerIdentifierPart(char character) {
+    return isalnum((unsigned char)character) || character == '_';
+}
+
+typedef struct
+{
+    const char *name;
+    Token_type type;
+} Keyword;
+
+static const Keyword keywords[] =
+{
+    { "var",    TOKEN_VAR },
+    { "func",   TOKEN_FUNC },
+    { "if",     TOKEN_IF },
+    { "loop",   TOKEN_LOOP },
+    { "end",    TOKEN_END },
+    { "return", TOKEN_RETURN },
+    { "as",     TOKEN_AS },
+    { "const",  TOKEN_CONST },
+
+    { "str",    TOKEN_TYPE_STR },
+    { "int",    TOKEN_TYPE_INT },
+    { "float",  TOKEN_TYPE_FLOAT },
+    { "bool",   TOKEN_TYPE_BOOL },
+    { "char",   TOKEN_TYPE_CHAR },
+    { "unique", TOKEN_TYPE_UNIQUE },
+    { "None",   TOKEN_TYPE_NONE }
+};
+
+static int LexerMatchKeyword(
+    const char *lexeme,
+    size_t length,
+    const char *keyword
+) {
+
+    return strlen(keyword) == length &&
+        strncmp(lexeme, keyword, length) == 0;
+}
+
+static Token_type LexerKeyword(
+    const char *lexeme,
+    size_t length
+) {
+
+    size_t count = sizeof(keywords) / sizeof(keywords[0]);
+
+    for (size_t i = 0; i < count; i++) {
+
+        if (LexerMatchKeyword(
+            lexeme,
+            length,
+            keywords[i].name
+        )) {
+            return keywords[i].type;
+        }
+    }
+
+    return TOKEN_IDENTIFIER;
+}
+
+static Token LexerReadIdentifier(Lexer *lexer) {
+
+    size_t start = lexer->position;
+
+    while (LexerIdentifierPart(LexerCurrent(lexer)))
+        LexerAdvance(lexer);
+
+    size_t length = lexer->position - start;
+
+    const char *lexeme = lexer->source + start;
+
+    Token_type type = LexerKeyword(lexeme, length);
+
+    return MakeToken(type, lexeme, length);
+}
 
 Token LexerNextToken(Lexer *lexer) {
 
@@ -60,7 +144,10 @@ Token LexerNextToken(Lexer *lexer) {
     char current = LexerCurrent(lexer);
 
     if (current == '\0')  
-        return (Token) { TOKEN_EOF, "" };
+        return (Token) { TOKEN_EOF, "", 0 };
+
+    if (LexerIdentifierStart(current))
+        return LexerReadIdentifier(lexer);
 
     switch (current) {
 
@@ -70,12 +157,12 @@ Token LexerNextToken(Lexer *lexer) {
                 LexerAdvance(lexer);
                 LexerAdvance(lexer);
 
-                return MakeToken(TOKEN_EQUAL_EQUAL, "==");
+                return MakeToken(TOKEN_EQUAL_EQUAL, "==", 2);
             }
             
             LexerAdvance(lexer); 
             
-            return MakeToken(TOKEN_EQUAL, "=");
+            return MakeToken(TOKEN_EQUAL, "=", 1);
 
         case '!':
             if (LexerPeek(lexer) == '=') {
@@ -83,7 +170,7 @@ Token LexerNextToken(Lexer *lexer) {
                 LexerAdvance(lexer);
                 LexerAdvance(lexer);
 
-                return MakeToken(TOKEN_NOT_EQUAL, "!=");
+                return MakeToken(TOKEN_NOT_EQUAL, "!=", 2);
             }
 
             break;
@@ -91,7 +178,7 @@ Token LexerNextToken(Lexer *lexer) {
         case '%':
             LexerAdvance(lexer);
 
-            return MakeToken(TOKEN_MODULO, "%");
+            return MakeToken(TOKEN_MODULO, "%", 1);
         
         case '|':
             if (LexerPeek(lexer) == '|') {
@@ -99,7 +186,7 @@ Token LexerNextToken(Lexer *lexer) {
                 LexerAdvance(lexer);
                 LexerAdvance(lexer);
 
-                return MakeToken(TOKEN_OR, "||");
+                return MakeToken(TOKEN_OR, "||", 2);
             }
             
             break;
@@ -110,7 +197,7 @@ Token LexerNextToken(Lexer *lexer) {
                 LexerAdvance(lexer);
                 LexerAdvance(lexer);
 
-                return MakeToken(TOKEN_EXPLICIT, "<>");
+                return MakeToken(TOKEN_EXPLICIT, "<>", 2);
             }
 
             break;
@@ -120,7 +207,7 @@ Token LexerNextToken(Lexer *lexer) {
                 LexerAdvance(lexer);
                 LexerAdvance(lexer);
 
-                return MakeToken(TOKEN_ARROW, "->");
+                return MakeToken(TOKEN_ARROW, "->", 2);
             }
         
             break;
@@ -128,43 +215,40 @@ Token LexerNextToken(Lexer *lexer) {
         
         case ':':
             LexerAdvance(lexer);
-            return MakeToken(TOKEN_COLON, ":");
+            return MakeToken(TOKEN_COLON, ":", 1);
         
         case '{': 
             LexerAdvance(lexer); 
-            return MakeToken(TOKEN_LBRACE, "{"); 
+            return MakeToken(TOKEN_LBRACE, "{", 1); 
             
         case '}': 
             LexerAdvance(lexer); 
-            return MakeToken(TOKEN_RBRACE, "}"); 
+            return MakeToken(TOKEN_RBRACE, "}", 1); 
             
         case '[': 
             LexerAdvance(lexer); 
-            return MakeToken(TOKEN_LBRACKET, "["); 
+            return MakeToken(TOKEN_LBRACKET, "[", 1); 
             
         case ']': 
             LexerAdvance(lexer); 
-            return MakeToken(TOKEN_RBRACKET, "]"); 
+            return MakeToken(TOKEN_RBRACKET, "]", 1); 
             
         case '(': 
             LexerAdvance(lexer); 
-            return MakeToken(TOKEN_LPAREN, "("); 
+            return MakeToken(TOKEN_LPAREN, "(", 1); 
             
         case ')': 
             LexerAdvance(lexer); 
-            return MakeToken(TOKEN_RPAREN, ")");
+            return MakeToken(TOKEN_RPAREN, ")", 1);
 
 
 
-        default:
+        default: 
             break;
     }
 
-
-    // Handles UNKNOWN character
-
+    const char *lexeme = lexer->source + lexer->position;
     LexerAdvance(lexer);
 
-    return MakeToken(TOKEN_EOF, "");
-
+    return MakeToken(TOKEN_UNKNOWN, lexeme, 1);
 }
