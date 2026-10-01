@@ -32,7 +32,7 @@ static void LexerAdvance(Lexer *lexer) {
         lexer->position++;
 }
 
-static void LexerSkipWhitespace(Lexer *lexer) {
+static void LexerIgnoreWhitespace(Lexer *lexer) {
 
     while(
         isspace(
@@ -42,6 +42,40 @@ static void LexerSkipWhitespace(Lexer *lexer) {
     )
 
     LexerAdvance(lexer);
+}
+
+static void LexerIgnoreComment(Lexer *lexer) {
+
+    while(
+        LexerCurrent(lexer) != '\n' &&
+        LexerCurrent(lexer) != '\0'
+    ) {
+        LexerAdvance(lexer);
+    }
+}
+
+static void LexerIgnore(Lexer *lexer) {
+
+    for (;;) {
+        LexerIgnoreWhitespace(lexer);
+
+        if (LexerCurrent(lexer) == '#') {
+            LexerIgnoreComment(lexer);
+            continue;
+        }
+
+        if (LexerCurrent(lexer) == '/' &&
+            LexerPeek(lexer) == '/') {
+
+            LexerAdvance(lexer);
+            LexerAdvance(lexer);
+
+            LexerIgnoreComment(lexer);
+            continue;
+        }
+
+        break;
+    }
 }
 
 
@@ -139,7 +173,7 @@ static Token LexerReadIdentifier(Lexer *lexer) {
 
 Token LexerNextToken(Lexer *lexer) {
 
-    LexerSkipWhitespace(lexer);
+    LexerIgnore(lexer);
 
     char current = LexerCurrent(lexer);
 
@@ -204,6 +238,7 @@ Token LexerNextToken(Lexer *lexer) {
 
         case '-':
             if (LexerPeek(lexer) == '>') {
+
                 LexerAdvance(lexer);
                 LexerAdvance(lexer);
 
@@ -211,7 +246,34 @@ Token LexerNextToken(Lexer *lexer) {
             }
         
             break;
+        
+        case '?':
+            if (LexerPeek(lexer) == '?') {
+                
+                LexerAdvance(lexer);
+                LexerAdvance(lexer);
 
+                return MakeToken(TOKEN_NULL_COALESCE, "??", 2);
+            }
+
+            break;
+        
+        
+        case '@':
+            LexerAdvance(lexer);
+            return MakeToken(TOKEN_AT, "@", 1);
+        
+        case '$':
+            LexerAdvance(lexer);
+            return MakeToken(TOKEN_DOLLAR, "$", 1);
+
+        case '#':
+            LexerAdvance(lexer);
+            return MakeToken(TOKEN_HASH, "#", 1);
+        
+        case '.':
+            LexerAdvance(lexer);
+            return MakeToken(TOKEN_DOT, ".", 1);
         
         case ':':
             LexerAdvance(lexer);
